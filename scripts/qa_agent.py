@@ -9,22 +9,30 @@ def ask_gemini(content):
 
     genai.configure(api_key=api_key)
     
-    # 使用官方最通用的簡稱，SDK 會自動幫你對應到最新的穩定版
     try:
-        print("🚀 正在嘗試使用 gemini-1.5-flash...")
-        model = genai.GenerativeModel('gemini-1.5-flash') 
-        response = model.generate_content(f"你是一位專業 QA。請審核以下規格，找出漏洞並產出 Gherkin 腳本：\n\n{content}")
-        return response.text
-    except Exception as e:
-        print(f"⚠️ Flash 嘗試失敗，原因：{str(e)}")
-        try:
-            print("🔄 正在嘗試使用 gemini-pro (1.0 版本)...")
-            model_pro = genai.GenerativeModel('gemini-pro')
-            response = model_pro.generate_content(f"你是一位專業 QA。請審核規格：\n\n{content}")
-            return response.text
-        except Exception as e2:
-            print(f"❌ 所有模型均呼叫失敗。最後報錯：{str(e2)}")
+        # --- 自動導航開始 ---
+        print("🔍 正在偵測你帳號中可用的模型...")
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+        
+        if not available_models:
+            print("❌ 嚴重錯誤：你的 API Key 雖然正確，但權限內沒有任何可用的生成模型。")
+            print("💡 建議：請去 Google AI Studio 重新建立一個新的 API Key。")
             sys.exit(1)
+            
+        target_model = available_models[0]
+        print(f"✅ 找到可用模型：{target_model}，發送請求中...")
+        # ------------------
+
+        model = genai.GenerativeModel(target_model) 
+        response = model.generate_content(f"你是一位專業 QA。請審核以下規格：\n\n{content}")
+        return response.text
+        
+    except Exception as e:
+        print(f"❌ 發生錯誤：{str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     file_path = sys.argv[1]
