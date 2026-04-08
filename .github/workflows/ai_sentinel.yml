@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'requirements/**'
+  workflow_dispatch:    # <--- 必須有這一行，按鈕才會出現！
 jobs:
   ai_job:
     runs-on: ubuntu-latest
