@@ -10,24 +10,25 @@ def ask_gemini(content):
     genai.configure(api_key=api_key)
     
     try:
-        # --- 自動導航開始 ---
-        print("🔍 正在偵測你帳號中可用的模型...")
-        available_models = []
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_models.append(m.name)
-        
+        # 自動偵測模型
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         if not available_models:
-            print("❌ 嚴重錯誤：你的 API Key 雖然正確，但權限內沒有任何可用的生成模型。")
-            print("💡 建議：請去 Google AI Studio 重新建立一個新的 API Key。")
             sys.exit(1)
             
-        target_model = available_models[0]
-        print(f"✅ 找到可用模型：{target_model}，發送請求中...")
-        # ------------------
-
-        model = genai.GenerativeModel(target_model) 
-        response = model.generate_content(f"你是一位專業 QA。請審核以下規格：\n\n{content}")
+        model = genai.GenerativeModel(available_models[0]) 
+        
+        # --- 修改指令內容 (Prompt) ---
+        prompt = f"""
+        你是一位專業的自動化測試工程師。請閱讀以下需求規格書 (PRD)：
+        {content}
+        
+        請根據規格書內容執行以下任務：
+        1. 找出潛在的邊界案例 (Edge Cases)。
+        2. 針對主要功能流程，撰寫完整的 Playwright (TypeScript) 自動化測試腳本。
+        3. 程式碼需包含註解說明，並假設頁面元素使用 data-testid 或 text 進行定位。
+        """
+        
+        response = model.generate_content(prompt)
         return response.text
         
     except Exception as e:
