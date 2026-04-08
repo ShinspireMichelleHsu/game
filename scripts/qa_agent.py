@@ -13,17 +13,25 @@ SYSTEM_PROMPT = """
 
 def ask_ai(content):
     api_key = os.getenv("AI_API_KEY")
-    # 這裡以常見的 API 調用為例
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     data = {
-        "model": "gpt-4-turbo", # 或你選用的模型
+        "model": "gpt-4o", # 確保你的 Key 支援此模型，或改用 "gpt-3.5-turbo"
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": "你是一位專業 QA，請審核規格並產出 Gherkin 腳本。"},
             {"role": "user", "content": content}
         ]
     }
     response = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers)
-    return response.json()['choices'][0]['message']['content']
+    
+    # --- 新增這幾行來抓壞蛋 ---
+    res_json = response.json()
+    if "error" in res_json:
+        print(f"AI 報錯了：{res_json['error']['message']}")
+        sys.exit(1) # 強制停止
+    # -----------------------
+    
+    return res_json['choices'][0]['message']['content']
+
 
 if __name__ == "__main__":
     file_path = sys.argv[1]
