@@ -6,20 +6,31 @@ def ask_gemini(content):
     if not api_key: sys.exit(1)
     genai.configure(api_key=api_key)
     
-    # 增加隨機等待，避免被 Google 視為機器人攻擊
-    time.sleep(random.uniform(5, 10))
+    # 稍微等待，避開流量高峰
+    time.sleep(random.uniform(2, 5))
     
-    # 強制使用 1.5-flash，這是目前免費版最穩定的模型
-    model = genai.GenerativeModel('gemini-1.5-flash') 
+    # 嘗試不同的模型名稱寫法
+    model_names = [
+        "gemini-1.5-flash",        # 簡寫版
+        "models/gemini-1.5-flash", # 完整版
+        "gemini-pro"               # 備用版
+    ]
     
-    prompt = f"你是一位專業自動化測試工程師。請根據以下規格書，產出 Playwright TypeScript 測試腳本。只輸出程式碼：\n\n{content}"
-    
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"❌ 發生錯誤：{str(e)}")
-        sys.exit(1)
+    last_error = ""
+    for name in model_names:
+        try:
+            print(f"🚀 嘗試使用模型：{name}")
+            model = genai.GenerativeModel(name)
+            prompt = f"你是一位專業自動化測試工程師。請根據以下規格書，產出 Playwright TypeScript 測試腳本。只輸出程式碼，不要 Markdown 格式：\n\n{content}"
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            last_error = str(e)
+            print(f"⚠️ {name} 失敗，嘗試下一個...")
+            continue
+            
+    print(f"❌ 所有模型嘗試均失敗。最後錯誤：{last_error}")
+    sys.exit(1)
 
 if __name__ == "__main__":
     file_path = sys.argv[1]
@@ -29,4 +40,4 @@ if __name__ == "__main__":
     os.makedirs('tests', exist_ok=True)
     with open('tests/gen_playwright.spec.ts', 'w', encoding='utf-8') as f:
         f.write(ai_code)
-    print("✅ 成功寫入檔案")
+    print("✅ 成功寫入檔案：tests/gen_playwright.spec.ts")
