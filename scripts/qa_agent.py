@@ -7,7 +7,8 @@ def ask_ai(content):
         sys.exit(1)
 
     # 這是 Google Gemini 的專用 API 路徑
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # 修正後的 URL 格式
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
     
     headers = {"Content-Type": "application/json"}
     
