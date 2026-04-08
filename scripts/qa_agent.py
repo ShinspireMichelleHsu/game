@@ -1,42 +1,42 @@
-import os
-import requests
-import sys
-
-# 設定 AI 指令（這就是我們之前討論的角色設定）
-SYSTEM_PROMPT = """
-你是一位資深軟體品管工程師 (QA)。
-請分析使用者提供的規格書內容，並執行以下任務：
-1. 找出規格中邏輯模糊或缺失的 Edge Cases。
-2. 產出對應的 Gherkin (Given/When/Then) 測試腳本。
-請用繁體中文回覆，並保持專業與嚴謹。
-"""
+import os, sys, requests
 
 def ask_ai(content):
     api_key = os.getenv("AI_API_KEY")
+    if not api_key:
+        return "錯誤：找不到 API 金鑰，請檢查 GitHub Secrets 設定。"
+    
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    
+    # 這裡我們換成最通用的 gpt-3.5-turbo，確保相容性
     data = {
-        "model": "gpt-4o", # 確保你的 Key 支援此模型，或改用 "gpt-3.5-turbo"
+        "model": "gpt-3.5-turbo", 
         "messages": [
             {"role": "system", "content": "你是一位專業 QA，請審核規格並產出 Gherkin 腳本。"},
             {"role": "user", "content": content}
         ]
     }
-    response = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers)
     
-    # --- 新增這幾行來抓壞蛋 ---
-    res_json = response.json()
-    if "error" in res_json:
-        print(f"AI 報錯了：{res_json['error']['message']}")
-        sys.exit(1) # 強制停止
-    # -----------------------
-    
-    return res_json['choices'][0]['message']['content']
-
+    try:
+        response = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers)
+        res_json = response.json()
+        
+        # 如果 AI 回傳錯誤訊息，直接印出來
+        if "error" in res_json:
+            return f"❌ AI 服務報錯：{res_json['error']['message']}"
+            
+        return res_json['choices'][0]['message']['content']
+    except Exception as e:
+        return f"❌ 程式執行出錯：{str(e)}"
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("錯誤：未提供 PRD 檔案路徑")
+        sys.exit(1)
+        
     file_path = sys.argv[1]
+    if not os.path.exists(file_path):
+        print(f"錯誤：找不到檔案 {file_path}")
+        sys.exit(1)
+        
     with open(file_path, 'r', encoding='utf-8') as f:
-        prd_content = f.read()
-    
-    report = ask_ai(prd_content)
-    print(report) # 這會輸出到 GitHub 的紀錄中
+        print(ask_ai(f.read()))
