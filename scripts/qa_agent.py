@@ -6,8 +6,7 @@ def ask_ai(content):
         print("❌ 錯誤：GitHub Secrets 中沒有設定 AI_API_KEY")
         sys.exit(1)
 
-    # 這是 Google Gemini 的專用 API 路徑
-    # 修正後的 URL 格式
+    # 嘗試使用 v1 穩定版路徑
     url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
     
     headers = {"Content-Type": "application/json"}
@@ -15,7 +14,7 @@ def ask_ai(content):
     data = {
         "contents": [{
             "parts": [{
-                "text": f"你是一位專業軟體品管 QA。請審核以下規格書內容，找出邏輯漏洞，並產出對應的 Gherkin 測試腳本：\n\n{content}"
+                "text": f"你是一位專業 QA。請審核以下規格，找出漏洞並產出 Gherkin 腳本：\n\n{content}"
             }]
         }]
     }
@@ -25,12 +24,19 @@ def ask_ai(content):
         res_json = response.json()
         
         if response.status_code != 200:
-            print(f"❌ API 呼叫失敗！狀態碼：{response.status_code}")
+            # 如果 v1 失敗，嘗試 v1beta
+            print(f"⚠️ v1 嘗試失敗，切換至 v1beta...")
+            url_beta = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+            response = requests.post(url_beta, json=data, headers=headers)
+            res_json = response.json()
+
+        if response.status_code == 200:
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            print(f"❌ API 最終呼叫失敗！狀態碼：{response.status_code}")
             print(f"❌ 錯誤內容：{res_json}")
             sys.exit(1)
             
-        # 提取 Gemini 的回覆文字
-        return res_json['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
         print(f"❌ 發生意外錯誤：{str(e)}")
         sys.exit(1)
