@@ -7,21 +7,26 @@ def ask_gemini(content):
         print("❌ 錯誤：找不到 AI_API_KEY")
         sys.exit(1)
 
-    # 設定 API
     genai.configure(api_key=api_key)
     
-    # 使用最新的 Flash 模型，這也是你剛才診斷出來可用的模型
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    # --- 關鍵修正：換成 1.5 版本，通常免費額度是開給這個版本的 ---
+    model = genai.GenerativeModel('gemini-1.5-flash') 
     
     prompt = f"你是一位專業 QA。請審核以下規格，找出漏洞並產出 Gherkin 腳本：\n\n{content}"
     
     try:
-        # 官方 SDK 會自動處理連線細節
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"❌ Gemini SDK 報錯：{str(e)}")
-        sys.exit(1)
+        # 如果 1.5-flash 也失敗，最後一試：gemini-1.5-pro
+        try:
+            print("🔄 嘗試切換至 gemini-1.5-pro...")
+            model_pro = genai.GenerativeModel('gemini-1.5-pro')
+            response = model_pro.generate_content(prompt)
+            return response.text
+        except:
+            print(f"❌ Gemini SDK 報錯：{str(e)}")
+            sys.exit(1)
 
 if __name__ == "__main__":
     file_path = sys.argv[1]
