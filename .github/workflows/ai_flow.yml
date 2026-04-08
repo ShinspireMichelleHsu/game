@@ -1,0 +1,22 @@
+name: AI_QA_Flow
+on:
+  push:
+    paths:
+      - 'requirements/**'
+  workflow_dispatch: # 這一行能讓你手動點擊執行，不用一直改檔案
+
+jobs:
+  ai_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install requests
+      - name: AI Review
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+        run: python scripts/qa_agent.py requirements/PRD.md
