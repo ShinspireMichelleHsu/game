@@ -6,28 +6,30 @@ def ask_ai(content):
         print("❌ 錯誤：GitHub Secrets 中沒有設定 AI_API_KEY")
         sys.exit(1)
 
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    # 這是 Google Gemini 的專用 API 路徑
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
-    # 使用目前最穩定且便宜的模型
+    headers = {"Content-Type": "application/json"}
+    
     data = {
-        "model": "gpt-4o-mini", 
-        "messages": [
-            {"role": "system", "content": "你是一位專業 QA，請審核規格並產出 Gherkin 腳本。"},
-            {"role": "user", "content": content}
-        ]
+        "contents": [{
+            "parts": [{
+                "text": f"你是一位專業軟體品管 QA。請審核以下規格書內容，找出邏輯漏洞，並產出對應的 Gherkin 測試腳本：\n\n{content}"
+            }]
+        }]
     }
     
     try:
-        response = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers)
+        response = requests.post(url, json=data, headers=headers)
         res_json = response.json()
         
-        # 如果失敗，印出完整錯誤訊息並停止，這樣我們才能在 GitHub Log 看到原因
         if response.status_code != 200:
             print(f"❌ API 呼叫失敗！狀態碼：{response.status_code}")
             print(f"❌ 錯誤內容：{res_json}")
             sys.exit(1)
             
-        return res_json['choices'][0]['message']['content']
+        # 提取 Gemini 的回覆文字
+        return res_json['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
         print(f"❌ 發生意外錯誤：{str(e)}")
         sys.exit(1)
