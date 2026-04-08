@@ -10,7 +10,7 @@ def ask_gemini(content):
     genai.configure(api_key=api_key)
     
     # --- 關鍵修正：換成 1.5 版本，通常免費額度是開給這個版本的 ---
-    model = genai.GenerativeModel('gemini-1.5-flash') 
+    model = genai.GenerativeModel('gemini-flash') 
     
     prompt = f"你是一位專業 QA。請審核以下規格，找出漏洞並產出 Gherkin 腳本：\n\n{content}"
     
@@ -18,10 +18,10 @@ def ask_gemini(content):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        # 如果 1.5-flash 也失敗，最後一試：gemini-1.5-pro
+        # 如果 1.5-flash 也失敗，最後一試：gemini-pro
         try:
-            print("🔄 嘗試切換至 gemini-1.5-pro...")
-            model_pro = genai.GenerativeModel('gemini-1.5-pro')
+            print("🔄 嘗試切換至 gemini-pro...")
+            model_pro = genai.GenerativeModel('gemini-pro')
             response = model_pro.generate_content(prompt)
             return response.text
         except:
