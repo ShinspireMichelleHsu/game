@@ -1,28 +1,25 @@
-import os, sys
+import os, sys, time
 import google.generativeai as genai
 
 def ask_gemini(content):
     api_key = os.getenv("AI_API_KEY")
     genai.configure(api_key=api_key)
     
+    # --- 關鍵修正：進入後先強制等待，確保冷卻時間 ---
+    print("⏳ 正在進行冷卻等待 (30秒)，避免觸發流量限制...")
+    time.sleep(30)
+    
     try:
-        # 終極招式：直接問 Google 我能用什麼？
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        if not available_models:
-            print("❌ 錯誤：你的 API Key 權限內沒有任何可用模型。請檢查 Google AI Studio 設定。")
-            sys.exit(1)
-            
-        target = available_models[0] # 自動選第一個活著的模型
-        print(f"✅ 找到活的模型：{target}")
+        target = available_models[0]
+        print(f"✅ 使用模型：{target}")
         
         model = genai.GenerativeModel(target)
-        prompt = f"你是一位自動化測試工程師。請根據以下規格，產出 Playwright TypeScript 腳本。只給程式碼：\n\n{content}"
+        prompt = f"你是一位自動化測試工程師。請根據規格產出 Playwright TypeScript 腳本。只給程式碼：\n\n{content}"
         response = model.generate_content(prompt)
         return response.text
-        
     except Exception as e:
-        print(f"❌ 發生錯誤：{str(e)}")
+        print(f"❌ 錯誤：{str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
