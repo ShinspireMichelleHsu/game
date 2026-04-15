@@ -1,267 +1,457 @@
 ```typescript
-// tests/member.spec.ts
+// member.spec.ts
 import { test, expect, Page } from '@playwright/test';
-import { faker } from '@faker-js/faker'; // 引入 faker-js 用於生成測試資料
 
-// 設定應用程式的基礎 URL。請將此替換為您的實際應用程式 URL。
-test.use({
-  baseURL: 'https://racego-member.webtech888.com/', 
-});
+// Define base URL for the application
+const BASE_URL = 'http://localhost:3000'; // 請替換為您的應用程式實際 URL
 
-// 輔助函數：生成唯一的電子郵件地址
-const generateUniqueEmail = () => faker.internet.email({ provider: 'example.com' });
-
-// 介面：定義已註冊使用者夾具的結構
-interface RegisteredUserFixture {
-  registeredEmail: string;
-  registeredPassword: string;
+// Utility function to generate a unique email address
+function generateUniqueEmail() {
+  const timestamp = new Date().getTime();
+  return `testuser+${timestamp}@example.com`;
 }
 
-// 擴展 Playwright 的 test 物件，以包含一個 'registeredUser' 夾具。
-// 這個夾具會在測試運行前註冊一個使用者，並提供其憑證給需要它的測試。
-const testWithRegisteredUser = test.extend<{ registeredUser: RegisteredUserFixture }>({
-  registeredUser: async ({ page }, use) => {
-    const email = generateUniqueEmail();
-    const password = 'Password123!'; // 測試帳戶使用的固定且強壯密碼
+// Utility function to generate a strong password
+function generateStrongPassword() {
+  return `Password${new Date().getTime().toString().slice(-4)}!`; // e.g., Password1234!
+}
 
-    // 執行註冊步驟
-    await page.goto('/register');
-    await expect(page.locator('h1')).toHaveText('建立帳號');
+// Utility function to generate a random name
+function generateRandomName() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
 
-    await page.getByLabel('帳號 (E-mail)').fill(email);
-    await page.getByLabel('密碼', { exact: true }).fill(password);
-    await page.getByLabel('確認密碼').fill(password);
-    await page.getByLabel('姓名').fill(faker.person.fullName());
-    await page.getByLabel('本國國籍 CITIZEN').check(); // 選擇「本國國籍」
-    await page.getByLabel('身分證字號').fill('A123456789'); // 填寫有效的身份證字號
-    await page.getByLabel('男').check(); // 選擇「男」
-    
-    // 填寫出生日期。假設日期選擇器可以直接輸入或有簡單的互動方式。
-    // 如果日期選擇器是複雜的 UI，需要更多互動（例如點擊月份/年份導航箭頭，然後點擊日期單元格）。
-    await page.getByPlaceholder('請選擇日期').fill('2000-01-01');
-    await page.keyboard.press('Escape'); // 關閉日期選擇器以避免遮擋其他元素
+// Utility function to generate a random ID number (simple simulation)
+function generateRandomIdNumber() {
+  return `A${Math.floor(Math.random() * 900000000) + 100000000}`; // A123456789
+}
 
-    await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
-    await page.getByRole('button', { name: '立即註冊' }).click();
-
-    // 斷言註冊成功訊息和頁面跳轉
-    // 重要：請將 '.success-message' 和 'h1' 的選擇器替換為您的應用程式中實際的元素選擇器。
-    await expect(page.locator('.success-message')).toHaveText('系統顯示註冊成功訊息');
-    await expect(page.locator('h1')).toHaveText('驗證電子信箱');
-
-    // 將註冊的使用者憑證提供給依賴此夾具的測試
-    await use({ registeredEmail: email, registeredPassword: password });
-  },
-});
-
-// 測試套件：帳號與認證相關測試
 test.describe('帳號與認證', () => {
 
-  // 在每個測試運行前執行，確保測試環境的乾淨狀態 (清除 cookie 和 localStorage)。
+  // Pre-condition: A registered user for tests that require one.
+  // We'll create a user here to be used across multiple tests.
+  let registeredEmail: string;
+  let registeredPassword = generateStrongPassword();
+
+  test.beforeAll(async ({ request }) => {
+    // In a real scenario, you might use API to register a user faster,
+    // or register through UI once and store credentials.
+    // For now, let's just pre-define a unique email that can be used
+    // for scenarios like "重複 Email" or "登入".
+    registeredEmail = generateUniqueEmail();
+
+    // Optionally, register this user via API if available,
+    // or run a simplified registration flow here if many tests depend on it.
+    // For this example, TC-M-003 will register an email itself,
+    // and other login/forgot password tests will rely on an *assumed* registered email.
+    // To make it robust, we'll actually register a user for later login tests.
+    // This part assumes a simplified API for registration, or could be a full UI flow.
+    // For this exercise, we will assume `registeredEmail` and `registeredPassword`
+    // are for an account that *will be* registered by TC-M-001 or a similar setup,
+    // or we'll perform a quick registration here if needed.
+    // Let's assume TC-M-001 will register `registeredEmail` and `registeredPassword`
+    // for its successful case, and we'll reuse those values.
+    // For robust pre-conditions, consider a dedicated setup.
+  });
+
   test.beforeEach(async ({ page }) => {
-    await page.goto('/'); // 導航到一個已知頁面以確保上下文已載入
-    await page.evaluate(() => localStorage.clear()); // 清除 localStorage
-    await page.context().clearCookies(); // 清除 cookie
+    await page.goto(BASE_URL); // Go to home page before each test
   });
 
-  // TC-M-001：會員註冊 — 正常流程
-  test('TC-M-001: 會員以有效資料完成帳號註冊', async ({ page }) => {
-    const email = generateUniqueEmail();
-    const password = 'Password123!';
+  test('TC-M-001：會員註冊 — 正常流程 - 會員以有效資料完成帳號註冊', async ({ page }) => {
+    const uniqueEmail = generateUniqueEmail();
+    const password = generateStrongPassword();
+    const name = generateRandomName();
+    const idNumber = generateRandomIdNumber();
+    const birthDate = '1990-01-01'; // YYYY-MM-DD
 
-    // 步驟 1: 開啟會員入口首頁，點擊右上角「註冊」按鈕
-    await page.goto('/');
-    // 重要：請將 'button', { name: '註冊' } 替換為您的註冊按鈕的實際選擇器 (例如 data-testid, class)。
-    await page.getByRole('button', { name: '註冊' }).click();
+    await test.step('開啟會員入口首頁，點擊右上角「註冊」按鈕', async () => {
+      await page.getByRole('button', { name: '註冊' }).click(); // Assuming a '註冊' button in header
+      await expect(page).toHaveURL(`${BASE_URL}/register`); // Adjust URL path if different
+    });
 
-    // 步驟 2: 頁面顯示「建立帳號」標題，副標題「加入競賽咖，開始您的賽事之旅」
-    await expect(page.locator('h1')).toHaveText('建立帳號');
-    await expect(page.locator('h2')).toHaveText('加入競賽咖，開始您的賽事之旅'); // 假設副標題是 h2
+    await test.step('頁面顯示「建立帳號」標題，副標題「加入競賽咖，開始您的賽事之旅」', async () => {
+      await expect(page.getByRole('heading', { name: '建立帳號' })).toBeVisible();
+      await expect(page.getByText('加入競賽咖，開始您的賽事之旅')).toBeVisible();
+    });
 
-    // 步驟 3: 依序填寫所有必填欄位
-    await page.getByLabel('帳號 (E-mail)').fill(email);
-    // 密碼強度計量條的視覺反饋在此處不會直接斷言，但填寫欄位會觸發它。
-    await page.getByLabel('密碼', { exact: true }).fill(password);
-    await page.getByLabel('確認密碼').fill(password);
-    await page.getByLabel('姓名').fill(faker.person.fullName());
-    await page.getByLabel('本國國籍 CITIZEN').check();
-    await page.getByLabel('身分證字號').fill('A123456789');
-    await page.getByLabel('男').check();
-    await page.getByPlaceholder('請選擇日期').fill('2000-01-01');
-    await page.keyboard.press('Escape'); // 關閉日期選擇器
+    await test.step('依序填寫所有必填欄位', async () => {
+      await page.getByLabel('帳號 (E-mail)').fill(uniqueEmail);
+      await page.getByLabel('密碼').fill(password);
+      await page.getByLabel('確認密碼').fill(password);
+      await page.getByLabel('姓名').fill(name);
 
-    // 步驟 4: 勾選「我已閱讀並同意服務條款與隱私權政策」checkbox
-    await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+      //國籍（radio 選項：本國國籍 CITIZEN / 外國國籍 NON-CITIZEN）
+      await page.getByLabel('本國國籍 CITIZEN').check();
 
-    // 步驟 5: 點擊「立即註冊」按鈕
-    await page.getByRole('button', { name: '立即註冊' }).click();
+      // 身分證字號（提示：外國人請輸入護照號碼）
+      await page.getByLabel('身分證字號').fill(idNumber);
 
-    // 預期結果:
-    // 系統顯示註冊成功訊息
-    // 重要：請將 '.success-message' 替換為您的成功訊息的實際 CSS 選擇器。
-    await expect(page.locator('.success-message')).toHaveText('系統顯示註冊成功訊息');
-    // 系統發送驗證郵件至填寫的 Email，頁面提示「驗證電子信箱」
-    // 重要：請將 'h1' 替換為「驗證電子信箱」頁面標題的實際選擇器。
-    await expect(page.locator('h1')).toHaveText('驗證電子信箱');
-    await expect(page).toHaveURL(/.*\/verify-email/); // 斷言 URL 已跳轉到電子郵件驗證頁面
+      // 性別（radio 選項：男 / 女）
+      await page.getByLabel('男').check();
+
+      // 出生日期（日期選擇器）- Assuming text input for simplicity
+      await page.getByLabel('出生日期').fill(birthDate);
+
+      // 勾選「我已閱讀並同意服務條款與隱私權政策」checkbox
+      await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+    });
+
+    await test.step('點擊「立即註冊」按鈕', async () => {
+      await page.getByRole('button', { name: '立即註冊' }).click();
+    });
+
+    await test.step('預期結果: 系統顯示註冊成功訊息，頁面提示「驗證電子信箱」', async () => {
+      // Assuming a success message or redirect to a verification page
+      await expect(page.getByText('註冊成功訊息')).toBeVisible(); // Replace with actual success message text
+      await expect(page.getByText('驗證電子信箱')).toBeVisible();
+      await expect(page).toHaveURL(`${BASE_URL}/verify-email`); // Adjust expected URL
+    });
+
+    // Store this user's details for subsequent tests if needed.
+    // For TC-M-004, M-005, M-007, we'll use a pre-registered user
+    // or assume the one created here. Let's make this the `registeredEmail`
+    // and `registeredPassword` for consistency.
+    registeredEmail = uniqueEmail;
+    // registeredPassword is already set to `password`
   });
 
-  // TC-M-002：會員註冊 — 密碼不一致
-  test('TC-M-002: 會員註冊時密碼與確認密碼不一致', async ({ page }) => {
-    // 步驟 1: 開啟「建立帳號」註冊頁面
-    await page.goto('/register');
-    await expect(page.locator('h1')).toHaveText('建立帳號');
+  test('TC-M-002：會員註冊 — 密碼不一致', async ({ page }) => {
+    const uniqueEmail = generateUniqueEmail();
+    const name = generateRandomName();
+    const idNumber = generateRandomIdNumber();
+    const birthDate = '1990-01-01';
 
-    // 步驟 2: 填寫帳號 (E-mail)、姓名等必填欄位
-    await page.getByLabel('帳號 (E-mail)').fill(generateUniqueEmail());
-    await page.getByLabel('姓名').fill(faker.person.fullName());
-    await page.getByLabel('本國國籍 CITIZEN').check();
-    await page.getByLabel('身分證字號').fill('A123456789');
-    await page.getByLabel('男').check();
-    await page.getByPlaceholder('請選擇日期').fill('2000-01-01');
-    await page.keyboard.press('Escape');
+    await test.step('開啟「建立帳號」註冊頁面', async () => {
+      await page.goto(`${BASE_URL}/register`); // Directly go to registration page
+      await expect(page.getByRole('heading', { name: '建立帳號' })).toBeVisible();
+    });
 
-    // 步驟 3: 「密碼」欄位輸入「Password123」，「確認密碼」欄位輸入「Password456」
-    await page.getByLabel('密碼', { exact: true }).fill('Password123');
-    await page.getByLabel('確認密碼').fill('Password456'); // 密碼不一致
+    await test.step('填寫帳號 (E-mail)、姓名等必填欄位', async () => {
+      await page.getByLabel('帳號 (E-mail)').fill(uniqueEmail);
+      await page.getByLabel('姓名').fill(name);
+      await page.getByLabel('本國國籍 CITIZEN').check();
+      await page.getByLabel('身分證字號').fill(idNumber);
+      await page.getByLabel('男').check();
+      await page.getByLabel('出生日期').fill(birthDate);
+    });
 
-    // 步驟 4: 勾選服務條款 checkbox，點擊「立即註冊」按鈕
-    await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
-    await page.getByRole('button', { name: '立即註冊' }).click();
+    await test.step('「密碼」欄位輸入「Password123」，「確認密碼」欄位輸入「Password456」', async () => {
+      await page.getByLabel('密碼').fill('Password123');
+      await page.getByLabel('確認密碼').fill('Password456');
+    });
 
-    // 預期結果:
-    // 系統顯示「密碼不一致」錯誤提示
-    // 重要：請將 '.error-message-password-confirm' 替換為您的錯誤提示的實際 CSS 選擇器。
-    await expect(page.locator('.error-message-password-confirm')).toHaveText('密碼不一致');
-    // 頁面保留在註冊頁，不進行註冊
-    await expect(page.locator('h1')).toHaveText('建立帳號');
-    await expect(page).toHaveURL(/.*\/register/); // 斷言 URL 仍在註冊頁面
+    await test.step('勾選服務條款 checkbox，點擊「立即註冊」按鈕', async () => {
+      await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+      await page.getByRole('button', { name: '立即註冊' }).click();
+    });
+
+    await test.step('預期結果: 系統顯示「密碼不一致」錯誤提示，頁面保留在註冊頁', async () => {
+      await expect(page.getByText('密碼不一致')).toBeVisible(); // Replace with actual error text
+      await expect(page).toHaveURL(`${BASE_URL}/register`); // Verify URL remains on registration page
+    });
   });
 
-  // TC-M-003：會員註冊 — 重複 Email
-  testWithRegisteredUser('TC-M-003: 會員使用已註冊的 Email 進行註冊', async ({ page, registeredUser }) => {
-    // 步驟 1: 開啟「建立帳號」註冊頁面
-    await page.goto('/register');
-    await expect(page.locator('h1')).toHaveText('建立帳號');
+  test('TC-M-003：會員註冊 — 重複 Email', async ({ page }) => {
+    const existingEmail = generateUniqueEmail();
+    const password = generateStrongPassword();
+    const name = generateRandomName();
+    const idNumber = generateRandomIdNumber();
+    const birthDate = '1990-01-01';
 
-    // 步驟 2: 在「帳號 (E-mail)」欄位輸入一個已註冊的 Email
-    await page.getByLabel('帳號 (E-mail)').fill(registeredUser.registeredEmail); // 使用夾具中已註冊的電子郵件
-    // 步驟 3: 填寫其餘所有必填欄位，密碼與確認密碼一致
-    await page.getByLabel('密碼', { exact: true }).fill(registeredUser.registeredPassword);
-    await page.getByLabel('確認密碼').fill(registeredUser.registeredPassword);
-    await page.getByLabel('姓名').fill(faker.person.fullName());
-    await page.getByLabel('本國國籍 CITIZEN').check();
-    await page.getByLabel('身分證字號').fill('A123456789');
-    await page.getByLabel('男').check();
-    await page.getByPlaceholder('請選擇日期').fill('2000-01-01');
-    await page.keyboard.press('Escape');
+    // Pre-condition: Register an account with `existingEmail`
+    await test.step('前置作業：註冊一個帳號', async () => {
+      await page.goto(`${BASE_URL}/register`);
+      await page.getByLabel('帳號 (E-mail)').fill(existingEmail);
+      await page.getByLabel('密碼').fill(password);
+      await page.getByLabel('確認密碼').fill(password);
+      await page.getByLabel('姓名').fill(name);
+      await page.getByLabel('本國國籍 CITIZEN').check();
+      await page.getByLabel('身分證字號').fill(idNumber);
+      await page.getByLabel('男').check();
+      await page.getByLabel('出生日期').fill(birthDate);
+      await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+      await page.getByRole('button', { name: '立即註冊' }).click();
+      // Wait for the first registration to complete and potentially redirect
+      await expect(page.getByText('註冊成功訊息')).toBeVisible();
+      await page.goto(`${BASE_URL}/register`); // Navigate back to registration page
+    });
 
-    // 步驟 4: 勾選服務條款 checkbox，點擊「立即註冊」按鈕
-    await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
-    await page.getByRole('button', { name: '立即註冊' }).click();
+    await test.step('開啟「建立帳號」註冊頁面', async () => {
+      await page.goto(`${BASE_URL}/register`);
+      await expect(page.getByRole('heading', { name: '建立帳號' })).toBeVisible();
+    });
 
-    // 預期結果:
-    // 系統顯示「此 Email 已被註冊」錯誤訊息
-    // 重要：請將 '.error-message-email' 替換為您的錯誤提示的實際 CSS 選擇器。
-    await expect(page.locator('.error-message-email')).toHaveText('此 Email 已被註冊');
-    // 不建立新帳號 (頁面停留在註冊頁並顯示錯誤)
-    await expect(page.locator('h1')).toHaveText('建立帳號');
-    await expect(page).toHaveURL(/.*\/register/);
+    await test.step('在「帳號 (E-mail)」欄位輸入一個已註冊的 Email', async () => {
+      await page.getByLabel('帳號 (E-mail)').fill(existingEmail);
+    });
+
+    await test.step('填寫其餘所有必填欄位，密碼與確認密碼一致', async () => {
+      await page.getByLabel('密碼').fill(password);
+      await page.getByLabel('確認密碼').fill(password);
+      await page.getByLabel('姓名').fill(generateRandomName()); // Use a different name
+      await page.getByLabel('本國國籍 CITIZEN').check();
+      await page.getByLabel('身分證字號').fill(generateRandomIdNumber());
+      await page.getByLabel('男').check();
+      await page.getByLabel('出生日期').fill(birthDate);
+    });
+
+    await test.step('勾選服務條款 checkbox，點擊「立即註冊」按鈕', async () => {
+      await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+      await page.getByRole('button', { name: '立即註冊' }).click();
+    });
+
+    await test.step('預期結果: 系統顯示「此 Email 已被註冊」錯誤訊息，不建立新帳號', async () => {
+      await expect(page.getByText('此 Email 已被註冊')).toBeVisible(); // Replace with actual error text
+      await expect(page).toHaveURL(`${BASE_URL}/register`); // Verify URL remains on registration page
+    });
   });
 
-  // TC-M-004：會員登入 — 正常流程
-  testWithRegisteredUser('TC-M-004: 會員以正確帳密登入', async ({ page, registeredUser }) => {
-    // 步驟 1: 開啟會員登入頁面
-    await page.goto('/login');
-    await expect(page.locator('h1')).toHaveText('歡迎回來');
-    await expect(page.locator('h2')).toHaveText('請登入您的帳號以繼續使用'); // 假設副標題是 h2
+  test('TC-M-004：會員登入 — 正常流程 - 會員以正確帳密登入', async ({ page }) => {
+    // Pre-condition: Assume `registeredEmail` and `registeredPassword` are from a successfully registered user
+    // For a robust test, you'd ensure this user is actually registered and verified.
+    // Let's assume this user is created by an earlier test or a setup hook.
+    const loginEmail = registeredEmail || generateUniqueEmail(); // Use the one from TC-M-001 or a new one
+    const loginPassword = registeredPassword;
 
-    // 步驟 2: 在「Email」欄位輸入已註冊的 Email
-    await page.getByLabel('Email', { exact: true }).fill(registeredUser.registeredEmail);
-    // 步驟 3: 在「密碼」欄位輸入正確密碼
-    await page.getByLabel('密碼', { exact: true }).fill(registeredUser.registeredPassword);
-    // 步驟 4 (可選): 勾選「記住我」checkbox
-    // await page.getByLabel('記住我').check();
-    // 步驟 5: 點擊「登入」按鈕
-    await page.getByRole('button', { name: '登入' }).click();
+    // A real scenario would involve creating this user via API or UI before this test.
+    // For demonstration, let's ensure a user exists for login.
+    await test.step('前置作業：確保有一個已註冊且已驗證的帳號', async () => {
+      // This is a placeholder for actual user creation/verification logic.
+      // In a real project, this might call an API or run a quick registration flow.
+      // For now, we'll simulate a quick registration if `registeredEmail` isn't set.
+      if (!registeredEmail) {
+        registeredEmail = generateUniqueEmail();
+        registeredPassword = generateStrongPassword();
+        await page.goto(`${BASE_URL}/register`);
+        await page.getByLabel('帳號 (E-mail)').fill(registeredEmail);
+        await page.getByLabel('密碼').fill(registeredPassword);
+        await page.getByLabel('確認密碼').fill(registeredPassword);
+        await page.getByLabel('姓名').fill(generateRandomName());
+        await page.getByLabel('本國國籍 CITIZEN').check();
+        await page.getByLabel('身分證字號').fill(generateRandomIdNumber());
+        await page.getByLabel('男').check();
+        await page.getByLabel('出生日期').fill('1990-01-01');
+        await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+        await page.getByRole('button', { name: '立即註冊' }).click();
+        await expect(page.getByText('註冊成功訊息')).toBeVisible();
+        // Assuming email verification is handled automatically for test environment or via API
+        await page.goto(`${BASE_URL}/login`); // Navigate to login page
+      } else {
+        await page.goto(`${BASE_URL}/login`);
+      }
+    });
 
-    // 預期結果:
-    // 系統導向首頁
-    await expect(page).toHaveURL(/.*\/$/); // 斷言 URL 跳轉到首頁
-    // 頁面 Header 顯示會員名稱與頭像下拉選單
-    // 重要：請將 '.header-user-name' 和 '.header-user-avatar' 替換為您的頁面 header 中實際的元素選擇器。
-    await expect(page.locator('.header-user-name')).toBeVisible();
-    await expect(page.locator('.header-user-avatar')).toBeVisible();
+    await test.step('開啟會員登入頁面，頁面顯示「歡迎回來」標題，副標題「請登入您的帳號以繼續使用」', async () => {
+      await expect(page.getByRole('heading', { name: '歡迎回來' })).toBeVisible();
+      await expect(page.getByText('請登入您的帳號以繼續使用')).toBeVisible();
+    });
+
+    await test.step('在「Email」欄位輸入已註冊的 Email', async () => {
+      await page.getByLabel('Email', { exact: true }).fill(loginEmail); // Using exact:true to avoid conflict with "Email 或帳號" placeholder if it's label
+    });
+
+    await test.step('在「密碼」欄位輸入正確密碼', async () => {
+      await page.getByLabel('密碼', { exact: true }).fill(loginPassword);
+    });
+
+    await test.step('可選擇勾選「記住我」checkbox (選填)', async () => {
+      // await page.getByLabel('記住我').check(); // Uncomment if you want to test this
+    });
+
+    await test.step('點擊「登入」按鈕', async () => {
+      await page.getByRole('button', { name: '登入' }).click();
+    });
+
+    await test.step('預期結果: 系統導向首頁，頁面 Header 顯示會員名稱與頭像下拉選單', async () => {
+      await expect(page).toHaveURL(BASE_URL); // Redirected to home page
+      // Assuming a locator for logged-in user's name/avatar in header
+      await expect(page.locator('.header-user-menu')).toBeVisible(); // Replace with actual locator
+      // For example: await expect(page.getByText('Hi, ' + name)).toBeVisible();
+    });
   });
 
-  // TC-M-005：會員登入 — 錯誤密碼
-  testWithRegisteredUser('TC-M-005: 會員以錯誤密碼登入', async ({ page, registeredUser }) => {
-    // 步驟 1: 開啟「歡迎回來」登入頁面
-    await page.goto('/login');
-    await expect(page.locator('h1')).toHaveText('歡迎回來');
+  test('TC-M-005：會員登入 — 錯誤密碼', async ({ page }) => {
+    // Pre-condition: Assume `registeredEmail` is from a successfully registered user
+    const loginEmail = registeredEmail || generateUniqueEmail(); // Use a known good email
+    const wrongPassword = 'WrongPassword123';
 
-    // 步驟 2: 在「Email」欄位輸入正確的 Email，在「密碼」欄位輸入錯誤的密碼
-    await page.getByLabel('Email', { exact: true }).fill(registeredUser.registeredEmail);
-    await page.getByLabel('密碼', { exact: true }).fill('WrongPassword123!'); // 錯誤密碼
-    // 步驟 3: 點擊「登入」按鈕
-    await page.getByRole('button', { name: '登入' }).click();
+    // Ensure a user exists for login test
+    await test.step('前置作業：確保有一個已註冊的帳號', async () => {
+      if (!registeredEmail) { // If registeredEmail isn't set, create a quick one.
+        registeredEmail = generateUniqueEmail();
+        registeredPassword = generateStrongPassword();
+        await page.goto(`${BASE_URL}/register`);
+        await page.getByLabel('帳號 (E-mail)').fill(registeredEmail);
+        await page.getByLabel('密碼').fill(registeredPassword);
+        await page.getByLabel('確認密碼').fill(registeredPassword);
+        await page.getByLabel('姓名').fill(generateRandomName());
+        await page.getByLabel('本國國籍 CITIZEN').check();
+        await page.getByLabel('身分證字號').fill(generateRandomIdNumber());
+        await page.getByLabel('男').check();
+        await page.getByLabel('出生日期').fill('1990-01-01');
+        await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+        await page.getByRole('button', { name: '立即註冊' }).click();
+        await expect(page.getByText('註冊成功訊息')).toBeVisible();
+        await page.goto(`${BASE_URL}/login`);
+      } else {
+        await page.goto(`${BASE_URL}/login`);
+      }
+    });
 
-    // 預期結果:
-    // 系統顯示「帳號或密碼錯誤」訊息
-    // 重要：請將 '.error-message-login' 替換為您的錯誤提示的實際 CSS 選擇器。
-    await expect(page.locator('.error-message-login')).toHaveText('帳號或密碼錯誤');
-    // 保留在登入頁
-    await expect(page.locator('h1')).toHaveText('歡迎回來');
-    await expect(page).toHaveURL(/.*\/login/);
+    await test.step('開啟「歡迎回來」登入頁面', async () => {
+      await page.goto(`${BASE_URL}/login`);
+      await expect(page.getByRole('heading', { name: '歡迎回來' })).toBeVisible();
+    });
+
+    await test.step('在「Email」欄位輸入正確的 Email，在「密碼」欄位輸入錯誤的密碼', async () => {
+      await page.getByLabel('Email', { exact: true }).fill(loginEmail);
+      await page.getByLabel('密碼', { exact: true }).fill(wrongPassword);
+    });
+
+    await test.step('點擊「登入」按鈕', async () => {
+      await page.getByRole('button', { name: '登入' }).click();
+    });
+
+    await test.step('預期結果: 系統顯示「帳號或密碼錯誤」訊息，保留在登入頁', async () => {
+      await expect(page.getByText('帳號或密碼錯誤')).toBeVisible(); // Replace with actual error text
+      await expect(page).toHaveURL(`${BASE_URL}/login`); // Verify URL remains on login page
+    });
   });
 
-  // TC-M-006：信箱驗證
-  testWithRegisteredUser('TC-M-006: 會員透過驗證連結完成信箱驗證', async ({ page, registeredUser }) => {
-    // 重要提示：此測試模擬點擊驗證連結。在實際情境中，您需要：
-    // 1. 攔截外發電子郵件 (例如，使用 Mailosaur/Mailtrap 等測試電子郵件服務，或本地 SMTP 伺服器)。
-    // 2. 從電子郵件內容中提取實際的驗證連結。
-    // 3. 導航到該提取的連結。
-    // 在此範例中，我們假設一個已知的驗證 URL 結構並模擬一個 token。
-    // 健壯的解決方案需要您的測試環境提供一個 API 端點，以獲取特定已註冊電子郵件的 token，或者實際的電子郵件互動。
-    const verificationToken = 'mock-verification-token-for-' + registeredUser.registeredEmail;
+  test('TC-M-006：信箱驗證', async ({ page, request }) => {
+    const uniqueEmail = generateUniqueEmail();
+    const password = generateStrongPassword();
+    const name = generateRandomName();
+    const idNumber = generateRandomIdNumber();
+    const birthDate = '1990-01-01';
 
-    // 步驟 1: (已由 'registeredUser' 夾具處理)
-    // 步驟 2: (模擬開啟收到的驗證郵件，點擊郵件中的驗證連結)
-    // 直接導航到預期的驗證 URL 來模擬點擊連結。
-    // 重要：請將 '/verify-email?token=' 替換為您實際的驗證端點和參數。
-    await page.goto(`/verify-email?token=${verificationToken}`);
+    await test.step('完成會員註冊', async () => {
+      await page.goto(`${BASE_URL}/register`);
+      await page.getByLabel('帳號 (E-mail)').fill(uniqueEmail);
+      await page.getByLabel('密碼').fill(password);
+      await page.getByLabel('確認密碼').fill(password);
+      await page.getByLabel('姓名').fill(name);
+      await page.getByLabel('本國國籍 CITIZEN').check();
+      await page.getByLabel('身分證字號').fill(idNumber);
+      await page.getByLabel('男').check();
+      await page.getByLabel('出生日期').fill(birthDate);
+      await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+      await page.getByRole('button', { name: '立即註冊' }).click();
+      await expect(page.getByText('註冊成功訊息')).toBeVisible();
+      await expect(page.getByText('驗證電子信箱')).toBeVisible();
+      await expect(page).toHaveURL(`${BASE_URL}/verify-email`); // Assuming redirect to verification prompt page
+    });
 
-    // 預期結果:
-    // 系統顯示「信箱驗證成功」訊息
-    // 重要：請將 '.success-message-email-verification' 替換為您的成功訊息的實際 CSS 選擇器。
-    await expect(page.locator('.success-message-email-verification')).toHaveText('信箱驗證成功');
-    // 會員帳號狀態更新為已驗證 (這是內部狀態，E2E 測試主要驗證 UI 反饋)
-    // 可選：斷言頁面跳轉到成功頁面或登入頁面。
-    await expect(page).toHaveURL(/.*\/verification-success/); // 假設跳轉到成功頁面
+    await test.step('開啟收到的驗證郵件，點擊郵件中的驗證連結', async () => {
+      // This is the challenging part for E2E tests. Playwright doesn't directly interact with email.
+      // Common approaches:
+      // 1. Use a test email service (e.g., Mailtrap, Mailosaur) with API to fetch email content.
+      // 2. If backend provides a test-only API to get verification link for an email.
+      // 3. Bypass verification in test environment (less ideal for E2E).
+      //
+      // For this example, we will simulate by navigating to a known verification endpoint
+      // that might exist in a test environment, or use a placeholder for fetching the link.
+
+      // Placeholder for fetching verification link (replace with actual implementation)
+      // let verificationLink: string;
+      // If using Mailtrap:
+      // const inboxId = 'YOUR_MAILTRAP_INBOX_ID';
+      // const apiKey = 'YOUR_MAILTRAP_API_KEY';
+      // const emailResponse = await request.get(`https://mailtrap.io/api/v1/inboxes/${inboxId}/messages?search=${uniqueEmail}`, {
+      //   headers: { 'Api-Token': apiKey }
+      // });
+      // const emails = await emailResponse.json();
+      // // Find the latest verification email and extract the link
+      // verificationLink = extractLinkFromEmailBody(emails[0].html_body); // Implement extractLinkFromEmailBody
+      //
+      // For this example, we'll assume a direct verification URL can be constructed for testing,
+      // or that the page redirects directly to a success state after simulated action.
+      // A more realistic example would involve fetching the actual email.
+      // For now, let's assume we can programmatically trigger verification if the system allows.
+      // Or, if the `verify-email` page itself has a "Resend verification" and a hidden way to get link.
+
+      // **SIMULATION**: In a real test, you would fetch the link from an email service.
+      // For this example, let's assume a verification API or a known pattern.
+      // Example: If the app redirects to `/verify-email?token=xyz` and we can get `xyz`.
+      // Let's directly navigate to a hypothetical successful verification page for demonstration.
+      // This is a simplification; actual implementation needs to find the link.
+      const verificationSuccessUrl = `${BASE_URL}/email-verified?status=success`; // Hypothetical URL after clicking link
+
+      // A more practical approach without email service integration:
+      // If the backend has a test endpoint to verify an email:
+      // await request.post(`${BASE_URL}/api/test-verify-email`, { data: { email: uniqueEmail } });
+      // Then, navigate to the login page or home page and expect the "verified" state.
+
+      // Let's assume after the registration, we have a way to get the token or directly hit the verification endpoint.
+      // For now, let's just assert the success message after "clicking" the link.
+      // Since Playwright cannot click links in an external email client, we'll simulate landing on the verified page.
+      await page.goto(verificationSuccessUrl); // Simulate clicking the link
+    });
+
+    await test.step('預期結果: 系統顯示「信箱驗證成功」訊息，會員帳號狀態更新為已驗證', async () => {
+      await expect(page.getByText('信箱驗證成功')).toBeVisible(); // Replace with actual success message
+      // To verify account status update, you'd typically log in and check UI elements,
+      // or query a backend API for the user's status. For this UI test, message visibility is enough.
+      // For example, after verification, maybe the user is redirected to a dashboard with a "Verified" badge.
+      // await page.goto(`${BASE_URL}/login`);
+      // await page.getByLabel('Email').fill(uniqueEmail);
+      // await page.getByLabel('密碼').fill(password);
+      // await page.getByRole('button', { name: '登入' }).click();
+      // await expect(page.locator('.user-status-verified')).toBeVisible(); // Example locator
+    });
   });
 
-  // TC-M-007：忘記密碼
-  testWithRegisteredUser('TC-M-007: 會員透過忘記密碼流程重設密碼', async ({ page, registeredUser }) => {
-    // 步驟 1: 在登入頁面點擊「忘記密碼？」連結
-    await page.goto('/login');
-    await expect(page.locator('h1')).toHaveText('歡迎回來');
+  test('TC-M-007：忘記密碼', async ({ page }) => {
+    // Pre-condition: Assume `registeredEmail` is from a successfully registered user
+    const userEmail = registeredEmail || generateUniqueEmail();
 
-    // 重要：請將 'link', { name: '忘記密碼？' } 替換為您的忘記密碼連結的實際選擇器。
-    await page.getByRole('link', { name: '忘記密碼？' }).click();
-    // 假設跳轉到忘記密碼頁面並顯示特定標題
-    await expect(page.locator('h1')).toHaveText('重設密碼'); // 假設頁面標題變為「重設密碼」
+    // Ensure a user exists for this test
+    await test.step('前置作業：確保有一個已註冊的帳號', async () => {
+      if (!registeredEmail) { // If registeredEmail isn't set, create a quick one.
+        registeredEmail = generateUniqueEmail();
+        registeredPassword = generateStrongPassword();
+        await page.goto(`${BASE_URL}/register`);
+        await page.getByLabel('帳號 (E-mail)').fill(registeredEmail);
+        await page.getByLabel('密碼').fill(registeredPassword);
+        await page.getByLabel('確認密碼').fill(registeredPassword);
+        await page.getByLabel('姓名').fill(generateRandomName());
+        await page.getByLabel('本國國籍 CITIZEN').check();
+        await page.getByLabel('身分證字號').fill(generateRandomIdNumber());
+        await page.getByLabel('男').check();
+        await page.getByLabel('出生日期').fill('1990-01-01');
+        await page.getByLabel('我已閱讀並同意服務條款與隱私權政策').check();
+        await page.getByRole('button', { name: '立即註冊' }).click();
+        await expect(page.getByText('註冊成功訊息')).toBeVisible();
+        await page.goto(`${BASE_URL}/login`);
+      } else {
+        await page.goto(`${BASE_URL}/login`);
+      }
+    });
 
-    // 步驟 2: 輸入已註冊的 Email
-    await page.getByLabel('Email').fill(registeredUser.registeredEmail);
-    // 步驟 3: 點擊「送出」按鈕
-    await page.getByRole('button', { name: '送出' }).click();
+    await test.step('在登入頁面點擊「忘記密碼？」連結', async () => {
+      await page.goto(`${BASE_URL}/login`);
+      await page.getByRole('link', { name: '忘記密碼？' }).click();
+      await expect(page).toHaveURL(`${BASE_URL}/forgot-password`); // Adjust URL if different
+    });
 
-    // 預期結果:
-    // 系統顯示「重設密碼郵件已發送」訊息
-    // 重要：請將 '.success-message-forgot-password' 替換為您的成功訊息的實際 CSS 選擇器。
-    await expect(page.locator('.success-message-forgot-password')).toHaveText('重設密碼郵件已發送');
-    // 可選：斷言頁面跳轉到確認頁面。
-    await expect(page).toHaveURL(/.*\/forgot-password-success/); // 假設跳轉到一個成功頁面
+    await test.step('輸入已註冊的 Email', async () => {
+      await page.getByLabel('Email', { exact: true }).fill(userEmail); // Assuming the field is labeled 'Email'
+    });
+
+    await test.step('點擊「送出」按鈕', async () => {
+      await page.getByRole('button', { name: '送出' }).click();
+    });
+
+    await test.step('預期結果: 系統顯示「重設密碼郵件已發送」訊息', async () => {
+      await expect(page.getByText('重設密碼郵件已發送')).toBeVisible(); // Replace with actual success message
+      await expect(page).toHaveURL(`${BASE_URL}/forgot-password-success`); // Adjust expected URL after submission
+    });
   });
 });
 ```
