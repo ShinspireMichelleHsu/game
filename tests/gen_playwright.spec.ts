@@ -1,17 +1,16 @@
-```typescript
 import { test, expect } from '@playwright/test';
 
-test('Test Playwright homepage and navigation', async ({ page }) => {
-  // 1. 进入首页。
+test('Homepage navigation and "Get started" flow', async ({ page }) => {
+  // 1. 進入首頁。
   await page.goto('https://playwright.dev/');
 
-  // 2. 确认标题包含 "Playwright" 字样。
+  // 2. 確認標題包含 "Playwright" 字樣。
   await expect(page).toHaveTitle(/Playwright/);
 
-  // 3. 点击 "Get started" 按钮。
+  // 3. 點擊 "Get started" 按鈕。
+  // 尋找包含 "Get started" 文字的按鈕或連結，並點擊。
   await page.getByRole('link', { name: 'Get started' }).click();
 
-  // 4. 确认跳转后的网网址包含 "docs/intro"。
+  // 4. 確認跳轉後的網址包含 "docs/intro"。
   await expect(page).toHaveURL(/.*docs\/intro/);
 });
-```
