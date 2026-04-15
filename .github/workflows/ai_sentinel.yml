@@ -31,15 +31,19 @@ jobs:
         run: python scripts/qa_agent.py requirements/PRD.md
 
       - name: Run Tests
-        run: npx playwright test --reporter=list # 使用清單模式，失敗會直接印在畫面上
+        # 加入 --list-confirms 確保我們看到腳本是否被讀取
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test --reporter=line
         continue-on-error: true
 
-      - name: Upload Evidence
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ai-test-evidence
-          path: |
+          name: ai-debug-bundle
+          # 這次我們抓整個目錄，我就不信抓不到
+          path: .
             playwright-report/
             screenshot.png
             test-results/
