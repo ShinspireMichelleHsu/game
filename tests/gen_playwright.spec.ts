@@ -3,7 +3,7 @@
 import { test, expect, Page } from '@playwright/test';
 
 // Define base URL for the application
-const BASE_URL = 'http://localhost:3000'; // 請替換為您的應用程式實際 URL
+const BASE_URL = 'https://racego-member.webtech888.com/'; // 請替換為您的應用程式實際 URL
 
 // Utility function to generate a unique email address
 function generateUniqueEmail() {
