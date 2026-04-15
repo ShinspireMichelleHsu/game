@@ -1,8 +1,5 @@
 name: AI_QA_Flow
 on:
-  push:
-    paths:
-      - 'requirements/**'
   workflow_dispatch:
 
 jobs:
@@ -12,51 +9,36 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Node.js (執行 Playwright 需要)
+
+      - name: Setup Node & Python
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          
-      - name: Install Python AI dependencies
-        run: pip install -q -U google-generativeai
-        
-      - name: Generate Playwright Test Code
-        env:
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-        run: python scripts/qa_agent.py requirements/PRD.md
-        
-      - name: Commit AI Code
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests/*.spec.ts
-          git commit -m "docs: AI 自動生成測試腳本" || echo "No changes"
-          git push
 
-      # --- 新增：執行測試與產生報告 ---
-      
-      - name: Install Playwright Dependencies
+      - name: Install Dependencies
         run: |
+          pip install -q -U google-generativeai
           npm init -y
           npm install @playwright/test typescript
           npx playwright install --with-deps chromium
 
-      - name: Run Playwright Tests
-        # 使用 --reporter=html 強制產出 HTML 報告，方便我們下載
-        run: npx playwright test --reporter=html
-        continue-on-error: true 
+      - name: Generate AI Code
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+        run: python scripts/qa_agent.py requirements/PRD.md
 
-      - name: Upload Test Report
+      - name: Run Tests with Visual Evidence
+        # 關鍵：強制產出 trace，且就算失敗也繼續往下走
+        run: npx playwright test --reporter=html --trace on
+        continue-on-error: true
+
+      - name: Upload Results
         uses: actions/upload-artifact@v4
-        # 確保無論成功或失敗 (always) 都上傳報告
-        if: always() 
+        if: always() # 這是保險，確保報告一定會上傳
         with:
-          name: playwright-report
+          name: playwright-visual-report
           path: playwright-report/
-          retention-days: 30
+          retention-days: 7
