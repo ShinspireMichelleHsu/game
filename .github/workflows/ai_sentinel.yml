@@ -48,12 +48,14 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run Playwright Tests
-        run: npx playwright test
-        continue-on-error: true # 就算測試失敗也要繼續跑，為了拿報告
+        # 使用 --reporter=html 強制產出 HTML 報告，方便我們下載
+        run: npx playwright test --reporter=html
+        continue-on-error: true 
 
       - name: Upload Test Report
         uses: actions/upload-artifact@v4
-        if: always()
+        # 確保無論成功或失敗 (always) 都上傳報告
+        if: always() 
         with:
           name: playwright-report
           path: playwright-report/
