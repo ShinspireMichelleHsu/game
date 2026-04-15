@@ -41,10 +41,18 @@ jobs:
         run: npx playwright test
         continue-on-error: true
 
+      - name: Print Generated Code for Debugging
+        # 就算沒 Artifact，我們直接把內容印在黑視窗裡看！
+        run: |
+          echo "--- START OF CODE ---"
+          cat tests/gen_playwright.spec.ts
+          echo "--- END OF CODE ---"
+
       - name: Upload Everything
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: full-project-debug
-          # 使用單引號包裹路徑，避免解析錯誤
-          path: '.'
+          path: .
+          # 加入這個，強制讓它存在更久
+          retention-days: 1
