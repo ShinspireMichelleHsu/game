@@ -18,9 +18,12 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
+      - name: Install Python Package
+        run: pip install -q -U google-generativeai
+
+      - name: Install Playwright
+        # 分開執行，確保安裝完整
         run: |
-          pip install -q -U google-generativeai
           npm init -y
           npm install @playwright/test typescript
           npx playwright install --with-deps chromium
@@ -30,20 +33,18 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python scripts/qa_agent.py requirements/PRD.md
 
+      - name: Check Generated File
+        # 這是 Debug 關鍵：檢查檔案到底有沒有生出來
+        run: ls -R tests/
+
       - name: Run Tests
-        # 加入 --list-confirms 確保我們看到腳本是否被讀取
-        run: |
-          npx playwright install --with-deps chromium
-          npx playwright test --reporter=line
+        run: npx playwright test
         continue-on-error: true
 
-      - name: Upload Artifacts
+      - name: Upload Everything
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ai-debug-bundle
-          # 這次我們抓整個目錄，我就不信抓不到
-          path: .
-            playwright-report/
-            screenshot.png
-            test-results/
+          name: full-project-debug
+          # 使用單引號包裹路徑，避免解析錯誤
+          path: '.'
