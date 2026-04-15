@@ -8,28 +8,53 @@ on:
 jobs:
   ai_job:
     runs-on: ubuntu-latest
-    permissions: # 賦予寫入權限
+    permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
       
+      - name: Setup Node.js (執行 Playwright 需要)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
           
-      - name: Install dependencies
+      - name: Install Python AI dependencies
         run: pip install -q -U google-generativeai
         
-      - name: Run AI Review and Generate File
+      - name: Generate Playwright Test Code
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python scripts/qa_agent.py requirements/PRD.md
         
-      - name: Commit and Push changes
+      - name: Commit AI Code
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add tests/*.spec.ts
-          git commit -m "docs: AI 根據需求自動產出 Playwright 測試腳本" || echo "No changes to commit"
+          git commit -m "docs: AI 自動生成測試腳本" || echo "No changes"
           git push
+
+      # --- 新增：執行測試與產生報告 ---
+      
+      - name: Install Playwright Dependencies
+        run: |
+          npm init -y
+          npm install @playwright/test typescript
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright Tests
+        run: npx playwright test
+        continue-on-error: true # 就算測試失敗也要繼續跑，為了拿報告
+
+      - name: Upload Test Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
