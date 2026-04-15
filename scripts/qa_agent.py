@@ -15,7 +15,7 @@ def ask_gemini(content):
         print(f"✅ 使用模型：{target}")
         
         model = genai.GenerativeModel(target)
-        prompt = f"你是一位自動化測試工程師。請根據規格產出 Playwright TypeScript 腳本。只給程式碼：\n\n{content}"
+        prompt = f"你是一位自動化測試工程師。請根據規格產出 Playwright TypeScript 腳本。請確保腳本中包含 test.use({ screenshot: 'only-on-failure', video: 'on' }); 以便記錄測試過程。只給程式碼：\n\n{content}"
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
