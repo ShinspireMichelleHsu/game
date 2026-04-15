@@ -27,7 +27,10 @@ if __name__ == "__main__":
     with open(file_path, 'r', encoding='utf-8') as f:
         ai_code = ask_gemini(f.read())
     
+    # --- 新增：清理 AI 產出的 Markdown 標籤 ---
+    clean_code = ai_code.replace("```typescript", "").replace("```ts", "").replace("```", "").strip()
+    
     os.makedirs('tests', exist_ok=True)
     with open('tests/gen_playwright.spec.ts', 'w', encoding='utf-8') as f:
-        f.write(ai_code)
-    print("🎉 任務完成！")
+        f.write(clean_code)  # 存入清理後的純程式碼
+    print("✅ 成功寫入乾淨的腳本檔案")
