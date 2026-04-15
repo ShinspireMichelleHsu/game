@@ -30,15 +30,16 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python scripts/qa_agent.py requirements/PRD.md
 
-      - name: Run Tests with Visual Evidence
-        # 關鍵：強制產出 trace，且就算失敗也繼續往下走
-        run: npx playwright test --reporter=html --trace on
+      - name: Run Tests
+        run: npx playwright test --reporter=list # 使用清單模式，失敗會直接印在畫面上
         continue-on-error: true
 
-      - name: Upload Results
+      - name: Upload Evidence
         uses: actions/upload-artifact@v4
-        if: always() # 這是保險，確保報告一定會上傳
+        if: always()
         with:
-          name: playwright-visual-report
-          path: playwright-report/
-          retention-days: 7
+          name: ai-test-evidence
+          path: |
+            playwright-report/
+            screenshot.png
+            test-results/
