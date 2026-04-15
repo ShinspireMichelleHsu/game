@@ -1,41 +1,40 @@
-import os, sys, time
+import os, sys
 import google.generativeai as genai
 
 def ask_gemini(content):
     api_key = os.getenv("AI_API_KEY")
     genai.configure(api_key=api_key)
-    
-    # 增加穩定性等待
-    time.sleep(5)
-    
     model = genai.GenerativeModel("gemini-1.5-flash")
     
-    # 修改 Prompt，強制 AI 加入截圖代碼
-    prompt = f"""你是一位專業的 QA 工程師。請根據以下 PRD 產出 Playwright TypeScript 測試。
+    # 強制模板：要求 AI 填空，而不是寫作文
+    prompt = f"""
+    你是一位 Playwright 專家。請將以下需求轉換為一個 Playwright 測試。
     
-    要求：
-    1. 只能輸出程式碼，不要 Markdown 標籤。
-    2. 在每個關鍵步驟（如 click, goto）後，加入 await page.screenshot({{ path: 'screenshot.png' }}); 
-    3. 確保包含 import {{ test, expect }} from '@playwright/test';
+    規則：
+    1. 輸出必須是純 TypeScript 程式碼。
+    2. 不要 Markdown 區塊（不准有 ```）。
+    3. 必須包含截圖指令：await page.screenshot({{ path: 'screenshot.png' }});
     
-    PRD 內容：
+    需求：
     {content}
     """
     
     try:
         response = model.generate_content(prompt)
-        # 剝掉可能出現的 Markdown 標籤
-        return response.text.replace("```typescript", "").replace("```ts", "").replace("```", "").strip()
+        text = response.text
+        # 強制清理：防止 AI 不聽話加上 Markdown 標籤
+        clean = text.replace("```typescript", "").replace("```ts", "").replace("```", "").strip()
+        return clean
     except Exception as e:
-        print(f"❌ AI 請求失敗: {e}")
+        print(f"Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    file_path = sys.argv[1]
-    with open(file_path, 'r', encoding='utf-8') as f:
-        clean_code = ask_gemini(f.read())
+    with open(sys.argv[1], 'r', encoding='utf-8') as f:
+        code = ask_gemini(f.read())
         
+    # 確保寫入 tests 目錄
     os.makedirs('tests', exist_ok=True)
     with open('tests/gen_playwright.spec.ts', 'w', encoding='utf-8') as f:
-        f.write(clean_code)
-    print("✅ 成功寫入乾淨的測試腳本")
+        f.write(code)
+    print("Code Generated Successfully")
